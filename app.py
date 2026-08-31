@@ -12,12 +12,14 @@ class Students(db.Model):  # Corrected class name and capitalization
     city = db.Column(db.String(50))  # Corrected column type and spelling
     addr = db.Column(db.String(200))  # Corrected column type and spelling
     pin = db.Column(db.String(10))  # Corrected column type and spelling
+    phone_number = db.Column(db.String(20))
 
-    def __init__(self, name, city, addr, pin):
+    def __init__(self, name, city, addr, pin, phone_number=""):
         self.name = name
         self.city = city
         self.addr = addr
         self.pin = pin
+        self.phone_number = phone_number
 
 @app.route('/')
 def show_all():
@@ -33,7 +35,8 @@ def new():
                 request.form['name'],
                 request.form['city'],
                 request.form['addr'],
-                request.form['pin']
+                request.form['pin'],
+                request.form.get('phone_number', '')
             )
             db.session.add(student)
             db.session.commit()  # Fixed typo in commit
