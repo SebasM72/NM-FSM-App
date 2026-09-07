@@ -1,0 +1,11 @@
+---
+mysql_rpm_url: "https://repo.mysql.com/mysql84-community-release-el9-1.noarch.rpm"
+mysql_rpm_dest: "/tmp/mysql84-community-release-el9-1.noarch.rpm"
+mysql_gpg_key_2023: "https://repo.mysql.com/RPM-GPG-KEY-mysql-2023"
+mysql_gpg_key_2022: "https://repo.mysql.com/RPM-GPG-KEY-mysql-2022"
+mysql_port: 3306
+mysql_bind_address: "0.0.0.0"
+mysql_datadir: "/mnt/mysql-data"
+mysql_socket: "/var/lib/mysql/mysql.sock"
+mysql_app_user: "flaskapp"
+mysql_db_name: "fsm_db"
