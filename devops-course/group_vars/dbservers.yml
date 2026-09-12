@@ -1,0 +1,8 @@
+---
+mysql_port: 3306                             # Standard MySQL Port
+mysql_bind_address: "0.0.0.0"                # Listen on any IP on the MySQL Server
+mysql_datadir: /mnt/mysql-data               # Will be overlaid by a mounted EBS volume on VM
+mysql_app_user: flaskapp
+mysql_db_name: fsm_db
+mysql_app_password: "{{ vault_mysql_app_password }}"   # From ansible vault
+mysql_root_password: "{{ vault_mysql_root_password }}"   # From ansible vault

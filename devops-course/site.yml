@@ -1,0 +1,8 @@
+---
+- name: Deploy and Configure MySQL 8.4 on Amazon Linux 2023
+  hosts: dbservers
+  become: true
+  vars_files:
+    - vault.yml
+  roles:
+    - mysql

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DATADIR="{{ mysql_datadir }}"
+
+# Ensure datadir directory exists
+if [ ! -d "$DATADIR" ]; then
+    mkdir -p "$DATADIR"
+fi
+
+# Ensure ownership and permissions
+chown -R mysql:mysql "$DATADIR"
+chmod 750 "$DATADIR"
+
+# Check if data directory is empty / uninitialized
+if [ ! -d "$DATADIR/mysql" ]; then
+    echo "Initializing MySQL data directory at $DATADIR..."
+    mysqld --initialize-insecure --user=mysql --datadir="$DATADIR" --lower-case-table-names=1
+    chown -R mysql:mysql "$DATADIR"
+    echo "MySQL data directory initialization complete."
+else
+    echo "MySQL data directory at $DATADIR is already initialized."
+fi

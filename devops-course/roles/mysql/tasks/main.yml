@@ -1,0 +1,194 @@
+---
+- name: Install prerequisite packages (python3-pip)
+  ansible.builtin.dnf:
+    name:
+      - python3-pip
+      - python3-setuptools
+    state: present
+    update_cache: true
+
+- name: Install PyMySQL and cryptography via pip for Amazon Linux 2023
+  ansible.builtin.pip:
+    name:
+      - pymysql
+      - cryptography
+    executable: pip3
+    state: present
+
+- name: Import MySQL GPG repository signing keys
+  ansible.builtin.rpm_key:
+    key: "{{ item }}"
+    state: present
+  loop:
+    - "{{ mysql_gpg_key_2023 }}"
+    - "{{ mysql_gpg_key_2022 }}"
+  ignore_errors: true
+
+- name: Download MySQL 8.4 repository RPM to /tmp
+  ansible.builtin.get_url:
+    url: "{{ mysql_rpm_url }}"
+    dest: "{{ mysql_rpm_dest }}"
+    mode: "0644"
+    headers:
+      User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+
+- name: Install MySQL 8.4 community repository package
+  ansible.builtin.dnf:
+    name: "{{ mysql_rpm_dest }}"
+    state: present
+    disable_gpg_check: true
+
+- name: Install MySQL Community Server package
+  ansible.builtin.dnf:
+    name: mysql-community-server
+    state: present
+
+- name: Ensure custom MySQL datadir directory exists
+  ansible.builtin.file:
+    path: "{{ mysql_datadir }}"
+    state: directory
+    owner: mysql
+    group: mysql
+    mode: "0750"
+
+- name: Ensure /etc/my.cnf includes /etc/my.cnf.d
+  ansible.builtin.lineinfile:
+    path: /etc/my.cnf
+    line: "!includedir /etc/my.cnf.d"
+    state: present
+    create: true
+
+- name: Deploy /etc/my.cnf.d/custom.cnf configuration before initialization
+  ansible.builtin.copy:
+    content: |
+      [mysqld]
+      port={{ mysql_port }}
+      bind-address={{ mysql_bind_address }}
+      datadir={{ mysql_datadir }}
+      socket={{ mysql_socket | default('/var/lib/mysql/mysql.sock') }}
+      lower_case_table_names=1
+      mysql-native-password=ON
+
+      [client]
+      port={{ mysql_port }}
+      socket={{ mysql_socket | default('/var/lib/mysql/mysql.sock') }}
+    dest: /etc/my.cnf.d/custom.cnf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart mysqld
+
+- name: Check if MySQL datadir is already initialized
+  ansible.builtin.stat:
+    path: "{{ mysql_datadir }}/mysql"
+  register: mysql_datadir_initialized
+
+- name: Initialize MySQL data directory with mysqld --initialize-insecure
+  ansible.builtin.command: >
+    mysqld --initialize-insecure --user=mysql --datadir={{ mysql_datadir }} --lower-case-table-names=1
+  when: not mysql_datadir_initialized.stat.exists
+
+- name: Ensure mysqld service is started and enabled
+  ansible.builtin.service:
+    name: mysqld
+    state: started
+    enabled: true
+
+- name: Flush handlers to ensure service is running with custom configuration
+  ansible.builtin.meta: flush_handlers
+
+- name: Test MySQL root connection with configured password
+  ansible.builtin.command: >
+    mysql --user=root --password="{{ mysql_root_password }}" --execute="SELECT 1;"
+  register: mysql_root_auth_ok
+  failed_when: false
+  changed_when: false
+  no_log: true
+
+- name: Set root password if not yet configured
+  when: mysql_root_auth_ok.rc != 0
+  block:
+    - name: Try setting root password from empty password (insecure init)
+      ansible.builtin.command: >
+        mysql --no-defaults --user=root --execute="ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ mysql_root_password }}';"
+      register: empty_pass_set
+      failed_when: false
+      changed_when: empty_pass_set.rc == 0
+      no_log: true
+
+    - name: Fallback to setting root password from mysqld.log temporary password
+      when: empty_pass_set.rc != 0
+      block:
+        - name: Extract temporary root password from mysqld.log
+          ansible.builtin.shell: >
+            grep 'temporary password' /var/log/mysqld.log | awk '{print $NF}' | tail -n 1
+          register: temp_mysql_pass
+          changed_when: false
+
+        - name: Set root password using temporary password
+          ansible.builtin.command: >
+            mysql --no-defaults --connect-expired-password -u root -p'{{ temp_mysql_pass.stdout }}' --execute="ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ mysql_root_password }}';"
+          when: temp_mysql_pass.stdout != ""
+          no_log: true
+
+- name: Deploy /root/.my.cnf for idempotent root authentication
+  ansible.builtin.copy:
+    content: |
+      [client]
+      user=root
+      password="{{ mysql_root_password }}"
+      socket={{ mysql_socket | default('/var/lib/mysql/mysql.sock') }}
+    dest: /root/.my.cnf
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Create application database
+  community.mysql.mysql_db:
+    name: "{{ mysql_db_name }}"
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: "{{ mysql_socket | default('/var/lib/mysql/mysql.sock') }}"
+
+- name: Create application MySQL user with caching_sha2_password authentication
+  community.mysql.mysql_user:
+    name: "{{ mysql_app_user }}"
+    password: "{{ mysql_app_password }}"
+    plugin: caching_sha2_password
+    priv: "{{ mysql_db_name }}.*:ALL"
+    host: "%"
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: "{{ mysql_socket | default('/var/lib/mysql/mysql.sock') }}"
+    update_password: on_create
+  no_log: true
+
+- name: Install the data-volume bootstrap script
+  copy:
+    src: mysql-data-bootstrap.sh
+    dest: /usr/local/sbin/mysql-data-bootstrap.sh
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the bootstrap systemd unit
+  copy:
+    src: mysql-data-bootstrap.service
+    dest: /etc/systemd/system/mysql-data-bootstrap.service
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Ensure rsync is present (used by the seeding step)
+  dnf:
+    name: rsync
+    state: present
+
+- name: Enable the bootstrap unit (runs before mysqld on every boot)
+  systemd:
+    name: mysql-data-bootstrap.service
+    enabled: yes
+    daemon_reload: yes
