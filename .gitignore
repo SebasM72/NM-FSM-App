@@ -2,3 +2,10 @@ venv/
 __pycache__/
 *.pyc
 .ansible_vault_pass
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.bin
+scale_lambda-*.zip
+*.swp
