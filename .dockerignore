@@ -1,0 +1,31 @@
+# .dockerignore
+# Python environment — never include the venv in the image
+venv/
+.venv/
+**/__pycache__/
+**/*.py[cod]
+
+# SQLite dev database — images are stateless
+*.db
+*.sqlite3
+instance/
+
+# Secrets
+.env
+.env.*
+
+# DevOps tooling — Terraform, Ansible, Packer. Never in the app image.
+devops-course/
+
+# Git history — not needed in the image
+.git/
+.git*
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Documentation
+*.md
+docs/
