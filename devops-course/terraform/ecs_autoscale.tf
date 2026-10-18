@@ -6,14 +6,14 @@ data "archive_file" "scale_lambda" {
   source {
     filename = "index.py"
     content  = <<-PY
-import boto3
-ecs = boto3.client('ecs')
-def handler(event, context):
-count = 0 if event['detail']['state'] == 'stopped' else 1
-ecs.update_service(cluster='${aws_ecs_cluster.main.name}',
-service='flask-${terraform.workspace}',
-desiredCount=count)
-PY
+      import boto3
+      ecs = boto3.client('ecs')
+      def handler(event, context):
+          count = 0 if event['detail']['state'] == 'stopped' else 1
+          ecs.update_service(cluster='${aws_ecs_cluster.main.name}',
+              service='flask-${terraform.workspace}',
+              desiredCount=count)
+    PY
   }
 }
 resource "aws_lambda_function" "ecs_follow_db" {
