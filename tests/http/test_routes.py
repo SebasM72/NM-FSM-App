@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from app import db, Students
 
 def test_index_returns_200(client):
@@ -38,3 +38,39 @@ def test_required_fields(client, missing):
     r = client.post("/new", data=data)
     assert r.status_code == 200
     assert Students.query.count() == before
+
+@pytest.mark.parametrize("flag", ["true", "false"])
+def test_form_major_field(client, monkeypatch, flag):
+    """Form field b'name="major"' is visible when flag is true, hidden when false."""
+    monkeypatch.setenv("ENABLE_MAJOR_FIELD", flag)
+    r = client.get("/new")
+    shown = b'name="major"' in r.data
+    assert shown == (flag == "true")
+
+@pytest.mark.parametrize("flag", ["true", "false"])
+def test_list_major_column(client, monkeypatch, flag):
+    """List column header b'<th>Major</th>' is visible when flag is true, hidden when false."""
+    monkeypatch.setenv("ENABLE_MAJOR_FIELD", flag)
+    r = client.get("/")
+    shown = b'<th>Major</th>' in r.data
+    assert shown == (flag == "true")
+
+@pytest.mark.parametrize("flag", ["true", "false"])
+def test_post_major_persistence(client, monkeypatch, flag):
+    """POST stores major when flag is true, stores None when false."""
+    monkeypatch.setenv("ENABLE_MAJOR_FIELD", flag)
+    test_name = f"MajorTest-{flag}"
+    r = client.post("/new", data={
+        "name": test_name, "city": "Miami",
+        "addr": "123 Main St", "pin": "33101",
+        "phone_number": "305-555-1234",
+        "major": "Computer Science"
+    })
+    assert r.status_code == 302
+    student = Students.query.filter_by(name=test_name).first()
+    assert student is not None
+    if flag == "true":
+        assert student.major == "Computer Science"
+    else:
+        assert student.major is None
+

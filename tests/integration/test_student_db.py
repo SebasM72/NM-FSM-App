@@ -1,4 +1,4 @@
-﻿import os
+import os
 import uuid
 import pytest
 from app import app, db, Students
@@ -49,3 +49,32 @@ def test_multiple_students(integration_app):
             assert Students.query.filter_by(name=n).first() is not None
     finally:
         cleanup(test_names)
+
+def test_student_with_major(integration_app):
+    """Insert student with major populated, query back and verify."""
+    test_name = "Integ-Major-%s" % uuid.uuid4().hex[:8]
+    try:
+        s = Students(name=test_name, city="Miami", addr="1 Main St",
+                     pin="33101", phone_number="305-555-0000", major="Computer Science")
+        db.session.add(s)
+        db.session.commit()
+        r = Students.query.filter_by(name=test_name).first()
+        assert r is not None
+        assert r.major == "Computer Science"
+    finally:
+        cleanup([test_name])
+
+def test_student_without_major(integration_app):
+    """Insert student with major omitted (NULL proves old-code backward compatibility)."""
+    test_name = "Integ-NoMajor-%s" % uuid.uuid4().hex[:8]
+    try:
+        s = Students(name=test_name, city="Miami", addr="1 Main St",
+                     pin="33101", phone_number="305-555-0000")
+        db.session.add(s)
+        db.session.commit()
+        r = Students.query.filter_by(name=test_name).first()
+        assert r is not None
+        assert r.major is None or r.major == ""
+    finally:
+        cleanup([test_name])
+
