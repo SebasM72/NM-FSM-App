@@ -32,6 +32,12 @@
                 <label for="phone_number" class="form-label">Phone Number:</label>
                 <input type="tel" id="phone_number" name="phone_number" class="form-control">
             </div>
+            {% if show_major %}
+            <div class="mb-3">
+                <label for="major" class="form-label">Major:</label>
+                <input type="text" id="major" name="major" class="form-control">
+            </div>
+            {% endif %}
             <div class="text-center">
                 <button type="submit" class="btn btn-success">Submit</button>
                 <a href="{{ url_for('show_all') }}" class="btn btn-secondary">Back to Students List</a>
